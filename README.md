@@ -79,7 +79,7 @@ NetAutomation/
 
 ```bash
 # 1. Clone or copy the project
-cd d:\Michael\NetAutomation
+cd /directory/
 
 # 2. Create virtual environment (recommended)
 python -m venv venv
