@@ -185,4 +185,4 @@ class Config:
 
 ## 📜 License
 
-Internal use — ENI Oil & Gas. Not for public distribution.
+This for testing open source project.
