@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Troubleshoot — NetAutomation{% endblock %}
+{% block page_title %}Network Troubleshooting{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Troubleshoot Controls -->
+    <div class="col-xl-4">
+        <div class="glass-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-stethoscope me-2 text-warning"></i>Diagnostics</h5>
+            </div>
+            <div class="card-body-custom">
+                <form method="POST" action="{{ url_for('troubleshoot') }}" id="troubleshoot-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" id="diag-action" value="">
+
+                    <div class="mb-3">
+                        <label for="ts_device_id" class="form-label">Select Device</label>
+                        <select class="form-select" id="ts_device_id" name="device_id" required>
+                            <option value="" disabled {% if not selected_device_id %}selected{% endif %}>Choose a device...</option>
+                            {% for d in devices %}
+                            <option value="{{ d.id }}" {% if selected_device_id == d.id %}selected{% endif %}>
+                                {{ d.hostname }} ({{ d.ip_address }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Quick Action Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label">Quick Diagnostics</label>
+                        <div class="d-grid gap-2">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_version')">
+                                        <i class="fas fa-info-circle me-1"></i>Version
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_interfaces')">
+                                        <i class="fas fa-ethernet me-1"></i>Interfaces
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_routes')">
+                                        <i class="fas fa-route me-1"></i>Routes
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_arp')">
+                                        <i class="fas fa-table me-1"></i>ARP Table
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_running')">
+                                        <i class="fas fa-file-code me-1"></i>Running Config
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="submit" class="btn btn-outline-info w-100 diag-btn" onclick="setAction('show_log')">
+                                        <i class="fas fa-list-alt me-1"></i>Logs
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary">
+
+                    <!-- Ping & Traceroute -->
+                    <div class="mb-3">
+                        <label for="target_ip" class="form-label">Target IP <small class="text-muted">(for Ping/Traceroute)</small></label>
+                        <input type="text" class="form-control" id="target_ip" name="target_ip"
+                               placeholder="e.g. 8.8.8.8">
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <button type="submit" class="btn btn-outline-success w-100" onclick="setAction('ping')">
+                                <i class="fas fa-satellite-dish me-1"></i>Ping
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button type="submit" class="btn btn-outline-warning w-100" onclick="setAction('traceroute')">
+                                <i class="fas fa-project-diagram me-1"></i>Traceroute
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary">
+
+                    <!-- Custom Command -->
+                    <div class="mb-3">
+                        <label for="custom_command" class="form-label">Custom Command</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control terminal-input" id="custom_command"
+                                   name="custom_command" placeholder="show ip ospf neighbor">
+                            <button type="submit" class="btn btn-primary" onclick="setAction('custom')" id="btn-run-custom">
+                                <i class="fas fa-play"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Output Panel -->
+    <div class="col-xl-8">
+        <div class="glass-card h-100">
+            <div class="card-header-custom d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-laptop-code me-2 text-success"></i>Output</h5>
+                {% if output %}
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyTsOutput()" id="btn-copy-ts">
+                    <i class="fas fa-copy me-1"></i>Copy
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body-custom">
+                <div class="terminal-output terminal-output-lg" id="ts-output">
+                    {% if output %}
+                        <pre>{{ output }}</pre>
+                    {% else %}
+                        <div class="terminal-placeholder">
+                            <i class="fas fa-stethoscope fa-3x mb-3 opacity-25"></i>
+                            <p class="text-muted">Select a device and run a diagnostic command</p>
+                            <p class="text-muted small">Results will appear here</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function setAction(action) {
+    document.getElementById('diag-action').value = action;
+}
+
+function copyTsOutput() {
+    const text = document.querySelector('#ts-output pre')?.textContent;
+    if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById('btn-copy-ts');
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+            setTimeout(() => btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy', 2000);
+        });
+    }
+}
+</script>
+{% endblock %}

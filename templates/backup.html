@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Backups — NetAutomation{% endblock %}
+{% block page_title %}Backup Configuration{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Backup Action -->
+    <div class="col-xl-4">
+        <div class="glass-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-download me-2 text-success"></i>Create Backup</h5>
+            </div>
+            <div class="card-body-custom">
+                <form method="POST" action="{{ url_for('backup') }}" id="backup-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label for="bk_device_id" class="form-label">Select Device</label>
+                        <select class="form-select" id="bk_device_id" name="device_id" required>
+                            <option value="" disabled selected>Choose a device...</option>
+                            {% for d in devices %}
+                            <option value="{{ d.id }}">
+                                {{ d.hostname }} ({{ d.ip_address }}) — {{ d.device_type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100" id="btn-backup-now">
+                        <i class="fas fa-cloud-download-alt me-2"></i>Backup Now
+                    </button>
+                </form>
+
+                <div class="mt-4">
+                    <div class="backup-info-box">
+                        <i class="fas fa-info-circle text-info me-2"></i>
+                        <small>Backups capture the running configuration and are stored locally in the database and on disk.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backup Stats -->
+        <div class="glass-card mt-4">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-chart-bar me-2 text-info"></i>Backup Stats</h5>
+            </div>
+            <div class="card-body-custom">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted">Total Backups</span>
+                    <span class="badge bg-info">{{ backups|length }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted">Devices Backed Up</span>
+                    <span class="badge bg-success">{{ backups|map(attribute='device_id')|list|unique|list|length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup History -->
+    <div class="col-xl-8">
+        <div class="glass-card">
+            <div class="card-header-custom d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-history me-2 text-primary"></i>Backup History</h5>
+                <button class="btn btn-outline-warning btn-sm" id="btn-compare" disabled>
+                    <i class="fas fa-exchange-alt me-1"></i>Compare (<span id="compare-count">0</span>)
+                </button>
+            </div>
+            <div class="card-body-custom p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0" id="backup-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>#</th>
+                                <th>Device</th>
+                                <th>IP Address</th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in backups %}
+                            <tr>
+                                <td>
+                                    <div class="form-check form-check-inline m-0">
+                                        <input class="form-check-input compare-checkbox" type="checkbox" value="{{ b.id }}">
+                                    </div>
+                                </td>
+                                <td>{{ b.id }}</td>
+                                <td><strong class="text-info">{{ b.hostname }}</strong></td>
+                                <td><code>{{ b.ip_address }}</code></td>
+                                <td><small>{{ b.filename }}</small></td>
+                                <td>
+                                    <span class="text-muted">
+                                        {% if b.file_size > 1024 %}
+                                            {{ "%.1f"|format(b.file_size / 1024) }} KB
+                                        {% else %}
+                                            {{ b.file_size }} B
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td><small class="text-muted">{{ b.created_at }}</small></td>
+                                <td>
+                                    <button class="btn btn-outline-info btn-sm me-1" title="View backup"
+                                            onclick="viewBackup({{ b.id }})">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <a href="{{ url_for('backup_download', backup_id=b.id) }}"
+                                       class="btn btn-outline-success btn-sm" title="Download">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="fas fa-database fa-2x mb-2 d-block opacity-50"></i>
+                                    No backups yet. Select a device and click "Backup Now".
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Backup View Modal -->
+<div class="modal fade" id="backupModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-code me-2 text-info"></i>
+                    <span id="modal-title-text">Backup Content</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="terminal-output terminal-output-lg" id="backup-content">
+                    <pre>Loading...</pre>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyBackupContent()">
+                    <i class="fas fa-copy me-1"></i>Copy
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewBackup(id) {
+    fetch(`/backup/${id}/view`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('modal-title-text').textContent =
+                `${data.hostname} — ${data.filename}`;
+            document.getElementById('backup-content').innerHTML =
+                `<pre>${escapeHtml(data.content)}</pre>`;
+            new bootstrap.Modal(document.getElementById('backupModal')).show();
+        })
+        .catch(() => alert('Failed to load backup.'));
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function copyBackupContent() {
+    const text = document.querySelector('#backup-content pre')?.textContent;
+    if (text) navigator.clipboard.writeText(text);
+}
+
+// Diff / Compare Logic
+document.addEventListener('DOMContentLoaded', () => {
+    const checkboxes = document.querySelectorAll('.compare-checkbox');
+    const btnCompare = document.getElementById('btn-compare');
+    const compareCount = document.getElementById('compare-count');
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            const checked = document.querySelectorAll('.compare-checkbox:checked');
+            compareCount.textContent = checked.length;
+            if (checked.length > 2) {
+                cb.checked = false;
+                compareCount.textContent = 2;
+                alert('You can only compare 2 backups at a time.');
+            }
+            btnCompare.disabled = (document.querySelectorAll('.compare-checkbox:checked').length !== 2);
+        });
+    });
+
+    if(btnCompare) {
+        btnCompare.addEventListener('click', () => {
+            const checked = document.querySelectorAll('.compare-checkbox:checked');
+            if (checked.length !== 2) return;
+            
+            const formData = new FormData();
+            formData.append('backup_1', checked[0].value);
+            formData.append('backup_2', checked[1].value);
+            
+            const csrfToken = document.querySelector('input[name="csrf_token"]');
+            if(csrfToken) {
+                formData.append('csrf_token', csrfToken.value);
+            }
+            
+            fetch('/backup/compare', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    document.getElementById('modal-title-text').textContent = 'Configuration Diff';
+                    // We render plain text with differences
+                    document.getElementById('backup-content').innerHTML = `<pre>${escapeHtml(data.diff)}</pre>`;
+                    new bootstrap.Modal(document.getElementById('backupModal')).show();
+                }
+            })
+            .catch(err => alert('Error comparing backups.'));
+        });
+    }
+});
+</script>
+{% endblock %}

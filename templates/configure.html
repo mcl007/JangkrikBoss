@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Configure — NetAutomation{% endblock %}
+{% block page_title %}Network Configuration{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Config Form -->
+    <div class="col-xl-5">
+        <div class="glass-card">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-cogs me-2 text-primary"></i>Push Configuration</h5>
+            </div>
+            <div class="card-body-custom">
+                <form method="POST" action="{{ url_for('configure') }}" id="config-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label for="device_id" class="form-label">Select Device</label>
+                        <select class="form-select" id="device_id" name="device_id" required>
+                            <option value="" disabled {% if not selected_device_id %}selected{% endif %}>Choose a device...</option>
+                            {% for d in devices %}
+                            <option value="{{ d.id }}" {% if selected_device_id == d.id %}selected{% endif %}>
+                                {{ d.hostname }} ({{ d.ip_address }}) — {{ d.device_type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Configuration Mode</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="config_mode"
+                                       id="mode_config" value="config_set" checked>
+                                <label class="form-check-label" for="mode_config">
+                                    <i class="fas fa-edit me-1"></i> Config Mode
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="config_mode"
+                                       id="mode_exec" value="exec">
+                                <label class="form-check-label" for="mode_exec">
+                                    <i class="fas fa-terminal me-1"></i> Exec Mode
+                                </label>
+                            </div>
+                        </div>
+                        <small class="text-muted">Config mode enters configure terminal. Exec mode runs show/exec commands.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="commands" class="form-label">Commands <small class="text-muted">(one per line)</small></label>
+                        <textarea class="form-control terminal-input" id="commands" name="commands"
+                                  rows="10" placeholder="interface GigabitEthernet0/1&#10;description Uplink to Core&#10;ip address 10.0.0.1 255.255.255.0&#10;no shutdown" required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="btn-push-config">
+                        <i class="fas fa-paper-plane me-2"></i>Push Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Output Panel -->
+    <div class="col-xl-7">
+        <div class="glass-card h-100">
+            <div class="card-header-custom d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-laptop-code me-2 text-success"></i>Output</h5>
+                {% if output %}
+                <button class="btn btn-outline-secondary btn-sm" onclick="copyOutput()" id="btn-copy-output">
+                    <i class="fas fa-copy me-1"></i>Copy
+                </button>
+                {% endif %}
+            </div>
+            <div class="card-body-custom">
+                <div class="terminal-output" id="config-output">
+                    {% if output %}
+                        <pre>{{ output }}</pre>
+                    {% else %}
+                        <div class="terminal-placeholder">
+                            <i class="fas fa-terminal fa-3x mb-3 opacity-25"></i>
+                            <p class="text-muted">Configuration output will appear here</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyOutput() {
+    const text = document.querySelector('#config-output pre')?.textContent;
+    if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById('btn-copy-output');
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+            setTimeout(() => btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy', 2000);
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}SSH Terminal — NetAutomation{% endblock %}
+{% block page_title %}Web SSH Terminal{% endblock %}
+
+{% block head %}
+<!-- xterm.js -->
+<link href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Connection Controls -->
+    <div class="col-12">
+        <div class="glass-card">
+            <div class="card-body-custom py-3">
+                <div class="row align-items-end g-3">
+                    <div class="col-md-4">
+                        <label for="ssh_device_id" class="form-label mb-1">Device</label>
+                        <select class="form-select" id="ssh_device_id">
+                            <option value="" disabled selected>Select a device...</option>
+                            {% for d in devices %}
+                            <option value="{{ d.id }}">{{ d.hostname }} ({{ d.ip_address }}) — {{ d.device_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success flex-fill" id="btn-ssh-connect" onclick="sshConnect()">
+                                <i class="fas fa-plug me-1"></i>Connect
+                            </button>
+                            <button class="btn btn-danger flex-fill" id="btn-ssh-disconnect" onclick="sshDisconnect()" disabled>
+                                <i class="fas fa-unlink me-1"></i>Disconnect
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="badge" id="ssh-status">
+                            <i class="fas fa-circle fa-xs me-1"></i>
+                            <span id="ssh-status-text">Disconnected</span>
+                        </span>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="clearTerminal()" title="Clear terminal">
+                            <i class="fas fa-eraser me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminal -->
+    <div class="col-12">
+        <div class="glass-card">
+            <div class="card-body-custom p-0">
+                <div id="terminal-container" class="ssh-terminal-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Socket.IO -->
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.4/dist/socket.io.min.js"></script>
+<!-- xterm.js -->
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+
+<script>
+    // Initialize xterm.js
+    const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        theme: {
+            background: '#0a0e1a',
+            foreground: '#e0e6f0',
+            cursor: '#00d4ff',
+            selectionBackground: '#264f78',
+            black: '#0a0e1a',
+            red: '#ff5370',
+            green: '#00e676',
+            yellow: '#ffcb6b',
+            blue: '#82aaff',
+            magenta: '#c792ea',
+            cyan: '#00d4ff',
+            white: '#e0e6f0',
+        },
+        scrollback: 5000,
+        convertEol: true,
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+
+    term.loadAddon(fitAddon);
+    term.loadAddon(webLinksAddon);
+    term.open(document.getElementById('terminal-container'));
+    fitAddon.fit();
+
+    term.writeln('\x1b[36m╔══════════════════════════════════════════════════════════╗\x1b[0m');
+    term.writeln('\x1b[36m║\x1b[0m   \x1b[1;33mNetAutomation — Web SSH Terminal\x1b[0m                       \x1b[36m║\x1b[0m');
+    term.writeln('\x1b[36m║\x1b[0m   Select a device and click Connect to start a session  \x1b[36m║\x1b[0m');
+    term.writeln('\x1b[36m╚══════════════════════════════════════════════════════════╝\x1b[0m');
+    term.writeln('');
+
+    // Socket.IO connection
+    let socket = null;
+    let connected = false;
+
+    function sshConnect() {
+        const deviceId = document.getElementById('ssh_device_id').value;
+        if (!deviceId) {
+            term.writeln('\x1b[31m*** Please select a device first ***\x1b[0m');
+            return;
+        }
+
+        if (connected) {
+            sshDisconnect();
+        }
+
+        setStatus('connecting');
+        term.writeln('\x1b[33m*** Connecting... ***\x1b[0m');
+
+        socket = io();
+
+        socket.on('connect', () => {
+            socket.emit('ssh_connect', { device_id: parseInt(deviceId) });
+        });
+
+        socket.on('ssh_output', (data) => {
+            term.write(data.data);
+            if (!connected && data.data.includes('Connected to')) {
+                connected = true;
+                setStatus('connected');
+            }
+        });
+
+        socket.on('disconnect', () => {
+            connected = false;
+            setStatus('disconnected');
+            term.writeln('\r\n\x1b[31m*** Disconnected ***\x1b[0m');
+        });
+
+        // Send keystrokes
+        term.onData((data) => {
+            if (connected && socket) {
+                socket.emit('ssh_input', { data: data });
+            }
+        });
+
+        // Handle resize
+        term.onResize(({ cols, rows }) => {
+            if (connected && socket) {
+                socket.emit('ssh_resize', { cols, rows });
+            }
+        });
+    }
+
+    function sshDisconnect() {
+        if (socket) {
+            socket.emit('ssh_disconnect');
+            socket.disconnect();
+            socket = null;
+        }
+        connected = false;
+        setStatus('disconnected');
+        term.writeln('\r\n\x1b[31m*** Session ended ***\x1b[0m');
+    }
+
+    function clearTerminal() {
+        term.clear();
+    }
+
+    function setStatus(state) {
+        const badge = document.getElementById('ssh-status');
+        const text = document.getElementById('ssh-status-text');
+        const connectBtn = document.getElementById('btn-ssh-connect');
+        const disconnectBtn = document.getElementById('btn-ssh-disconnect');
+
+        badge.className = 'badge';
+        if (state === 'connected') {
+            badge.classList.add('bg-success-subtle', 'text-success');
+            text.textContent = 'Connected';
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+        } else if (state === 'connecting') {
+            badge.classList.add('bg-warning-subtle', 'text-warning');
+            text.textContent = 'Connecting...';
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = true;
+        } else {
+            badge.classList.add('bg-danger-subtle', 'text-danger');
+            text.textContent = 'Disconnected';
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+        }
+    }
+
+    setStatus('disconnected');
+
+    // Responsive terminal resize
+    window.addEventListener('resize', () => {
+        fitAddon.fit();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — NetAutomation{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" id="stat-devices">
+            <div class="stat-icon bg-primary-subtle">
+                <i class="fas fa-server text-primary"></i>
+            </div>
+            <div class="stat-info">
+                <h3>{{ stats.total_devices }}</h3>
+                <span>Total Devices</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" id="stat-backups">
+            <div class="stat-icon bg-success-subtle">
+                <i class="fas fa-database text-success"></i>
+            </div>
+            <div class="stat-info">
+                <h3>{{ stats.total_backups }}</h3>
+                <span>Total Backups</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" id="stat-configs">
+            <div class="stat-icon bg-info-subtle">
+                <i class="fas fa-cogs text-info"></i>
+            </div>
+            <div class="stat-info">
+                <h3>{{ stats.total_configs }}</h3>
+                <span>Configs Pushed</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" id="stat-errors">
+            <div class="stat-icon bg-danger-subtle">
+                <i class="fas fa-exclamation-triangle text-danger"></i>
+            </div>
+            <div class="stat-info">
+                <h3>{{ stats.total_errors }}</h3>
+                <span>Errors</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions + Recent Activity -->
+<div class="row g-4">
+    <!-- Quick Actions -->
+    <div class="col-xl-4">
+        <div class="glass-card h-100">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body-custom">
+                <a href="{{ url_for('devices') }}" class="quick-action-btn" id="qa-add-device">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Add Device</span>
+                </a>
+                <a href="{{ url_for('backup') }}" class="quick-action-btn" id="qa-backup">
+                    <i class="fas fa-download"></i>
+                    <span>Backup Config</span>
+                </a>
+                <a href="{{ url_for('troubleshoot') }}" class="quick-action-btn" id="qa-troubleshoot">
+                    <i class="fas fa-stethoscope"></i>
+                    <span>Run Diagnostic</span>
+                </a>
+                <a href="{{ url_for('configure') }}" class="quick-action-btn" id="qa-configure">
+                    <i class="fas fa-terminal"></i>
+                    <span>Push Config</span>
+                </a>
+                <a href="{{ url_for('terminal') }}" class="quick-action-btn" id="qa-terminal">
+                    <i class="fas fa-laptop-code"></i>
+                    <span>SSH Terminal</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="col-xl-8">
+        <div class="glass-card h-100">
+            <div class="card-header-custom">
+                <h5><i class="fas fa-clock me-2 text-info"></i>Recent Activity</h5>
+            </div>
+            <div class="card-body-custom p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0" id="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Device</th>
+                                <th>Action</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in activities %}
+                            <tr>
+                                <td><small class="text-muted">{{ a.created_at }}</small></td>
+                                <td>{{ a.username or '—' }}</td>
+                                <td>
+                                    {% if a.hostname %}
+                                        <span class="text-info">{{ a.hostname }}</span>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if a.action == 'configure' else 'success' if a.action == 'backup' else 'info' if a.action == 'troubleshoot' else 'secondary' }}">
+                                        {{ a.action }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if a.status == 'success' %}
+                                        <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                                    {% else %}
+                                        <span class="text-danger"><i class="fas fa-times-circle"></i></span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    No recent activity
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

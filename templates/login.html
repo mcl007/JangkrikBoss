@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Login — NetAutomation{% endblock %}
+
+{% block guest_content %}
+<div class="login-wrapper">
+    <div class="login-bg-animation">
+        <div class="particle p1"></div>
+        <div class="particle p2"></div>
+        <div class="particle p3"></div>
+        <div class="particle p4"></div>
+        <div class="particle p5"></div>
+    </div>
+
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-icon">
+                <img src="https://upload.wikimedia.org/wikipedia/en/thumb/e/e1/Eni_SpA.svg/200px-Eni_SpA.svg.png"
+                    alt="ENI" style="width:40px;height:40px;object-fit:contain;">
+            </div>
+            <h1>ENI ORF Network Automation</h1>
+            <p>Network Automation Platform by Michael</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}" id="login-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="username" name="username" placeholder="Username" required
+                    autocomplete="username">
+                <label for="username"><i class="fas fa-user me-2"></i>Username</label>
+            </div>
+
+            <div class="form-floating mb-4">
+                <input type="password" class="form-control" id="password" name="password" placeholder="Password"
+                    required autocomplete="current-password">
+                <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg w-100" id="btn-login">
+                <i class="fas fa-sign-in-alt me-2"></i>Sign In
+            </button>
+        </form>
+
+        <div class="login-footer">
+            <small class="text-muted">Secure access to your network infrastructure</small>
+        </div>
+    </div>
+</div>
+{% endblock %}
